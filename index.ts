@@ -1,6 +1,5 @@
-import * as http from 'http';
-import { createWriteStream, createReadStream } from 'fs';
-import { rm, readFile } from 'fs/promises';
+import { createWriteStream, existsSync, mkdirSync } from 'fs';
+import { rm, readFile, access } from 'fs/promises';
 import fetch from 'node-fetch';
 import path from 'path';
 import * as iconv from 'iconv-lite';
@@ -8,12 +7,25 @@ let AdmZip = require("adm-zip");
 
 const currentPath = path.join(__dirname);
 
-async function parseBik() {
+interface IAccountInfo {
+  bic: number;
+  name: string;
+  corrAccount: number;
+}
+
+
+async function parseBik(url: string) {
+  const result: IAccountInfo[] = [];
   try {
+    // Check folder
+    const folderName = `${currentPath}/archive`;
+    if (!existsSync(folderName)) {
+      mkdirSync(folderName);
+    }
     // Download and save archive
-    const res = await fetch(`https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip`);
+    const res = await fetch(url);
     if (!res.ok || !res.body) throw new Error(`unexpected response ${res.statusText}`);
-    let resReadStream = res.body.pipe(createWriteStream(`${currentPath}/assets/archive.zip`));
+    let resReadStream = res.body.pipe(createWriteStream(`${folderName}/archive.zip`));
     await new Promise((resolve, reject) => {
       resReadStream.on('finish', () => {
         resolve("Done");
@@ -21,23 +33,24 @@ async function parseBik() {
         reject(err);
       })
     });
-    // Extract and delete archive
-    const archive = new AdmZip(`${currentPath}/assets/archive.zip`);
-    // const entries = archive.getEntries();
-    // for (let entry of entries) {
-    //   const buffer = entry.getData();
-    //   console.dir("\n" + buffer.toString("utf-8") + "\n");
-    // }
-    archive.extractAllTo(`${currentPath}/assets`);
-    await rm(`${currentPath}/assets/archive.zip`, { recursive: true });
+    // Extract XML and delete archive
+    const archive = new AdmZip(`${folderName}/archive.zip`);
+    archive.extractAllTo(`${folderName}`);
+    await rm(`${folderName}/archive.zip`, { recursive: true });
     // Parse XML file
-    const fileBuffer = await readFile(`${currentPath}/assets/20230221_ED807_full.xml`);
-    const data = iconv.decode(fileBuffer, 'win1251');
-    console.log(data);
+    const dataBuffer = await readFile(`${folderName}/20230221_ED807_full.xml`);
+    const cyrillicDecoded = iconv.decode(dataBuffer, 'win1251');
+    console.log(cyrillicDecoded);
+    // Delete folder
+    await rm(`${folderName}`, { recursive: true });
   } catch (err) {
     return console.error(err);
   }
+  return result;
 }
-parseBik();
+
+
+const url = `https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip`;
+parseBik(url);
 
 

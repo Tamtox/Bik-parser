@@ -1,7 +1,11 @@
 "use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
 }) : (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
@@ -29,13 +33,19 @@ const path_1 = __importDefault(require("path"));
 const iconv = __importStar(require("iconv-lite"));
 let AdmZip = require("adm-zip");
 const currentPath = path_1.default.join(__dirname);
-async function parseBik() {
+async function parseBik(url) {
+    const result = [];
     try {
+        // Check folder
+        const folderName = `${currentPath}/archive`;
+        if (!(0, fs_1.existsSync)(folderName)) {
+            (0, fs_1.mkdirSync)(folderName);
+        }
         // Download and save archive
-        const res = await (0, node_fetch_1.default)(`https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip`);
+        const res = await (0, node_fetch_1.default)(url);
         if (!res.ok || !res.body)
             throw new Error(`unexpected response ${res.statusText}`);
-        let resReadStream = res.body.pipe((0, fs_1.createWriteStream)(`${currentPath}/assets/archive.zip`));
+        let resReadStream = res.body.pipe((0, fs_1.createWriteStream)(`${folderName}/archive.zip`));
         await new Promise((resolve, reject) => {
             resReadStream.on('finish', () => {
                 resolve("Done");
@@ -43,22 +53,21 @@ async function parseBik() {
                 reject(err);
             });
         });
-        // Extract and delete archive
-        const archive = new AdmZip(`${currentPath}/assets/archive.zip`);
-        // const entries = archive.getEntries();
-        // for (let entry of entries) {
-        //   const buffer = entry.getData();
-        //   console.dir("\n" + buffer.toString("utf-8") + "\n");
-        // }
-        archive.extractAllTo(`${currentPath}/assets`);
-        await (0, promises_1.rm)(`${currentPath}/assets/archive.zip`, { recursive: true });
+        // Extract XML and delete archive
+        const archive = new AdmZip(`${folderName}/archive.zip`);
+        archive.extractAllTo(`${folderName}`);
+        await (0, promises_1.rm)(`${folderName}/archive.zip`, { recursive: true });
         // Parse XML file
-        const fileBuffer = await (0, promises_1.readFile)(`${currentPath}/assets/20230221_ED807_full.xml`);
-        const data = iconv.decode(fileBuffer, 'win1251');
-        console.log(data);
+        const dataBuffer = await (0, promises_1.readFile)(`${folderName}/20230221_ED807_full.xml`);
+        const cyrillicDecoded = iconv.decode(dataBuffer, 'win1251');
+        console.log(cyrillicDecoded);
+        // Delete folder
+        await (0, promises_1.rm)(`${folderName}`, { recursive: true });
     }
     catch (err) {
         return console.error(err);
     }
+    return result;
 }
-parseBik();
+const url = `https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip`;
+parseBik(url);
