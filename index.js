@@ -1,11 +1,7 @@
 "use strict";
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
 }) : (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
@@ -31,6 +27,7 @@ const promises_1 = require("fs/promises");
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const path_1 = __importDefault(require("path"));
 const iconv = __importStar(require("iconv-lite"));
+const xml2js_1 = require("xml2js");
 let AdmZip = require("adm-zip");
 const currentPath = path_1.default.join(__dirname);
 async function parseBik(url) {
@@ -59,8 +56,31 @@ async function parseBik(url) {
         await (0, promises_1.rm)(`${folderName}/archive.zip`, { recursive: true });
         // Parse XML file
         const dataBuffer = await (0, promises_1.readFile)(`${folderName}/20230221_ED807_full.xml`);
-        const cyrillicDecoded = iconv.decode(dataBuffer, 'win1251');
-        console.log(cyrillicDecoded);
+        const xmlString = iconv.decode(dataBuffer, 'win1251');
+        const parseResult = await new Promise((resolve, reject) => {
+            (0, xml2js_1.parseString)(xmlString, (error, result) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    resolve(result);
+                }
+            });
+        });
+        // Aggregate data
+        const participants = parseResult['ED807']['BICDirectoryEntry'];
+        participants.forEach((participant) => {
+            const bic = participant['$']['BIC'];
+            const name = participant['ParticipantInfo'][0]['$']['NameP'];
+            const accounts = participant['Accounts'];
+            if (accounts && bic && name) {
+                accounts.forEach((account) => {
+                    const corrAccount = account['$']['Account'];
+                    const entry = { bic, name, corrAccount };
+                    result.push(entry);
+                });
+            }
+        });
         // Delete folder
         await (0, promises_1.rm)(`${folderName}`, { recursive: true });
     }
@@ -69,5 +89,7 @@ async function parseBik(url) {
     }
     return result;
 }
-const url = `https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip`;
-parseBik(url);
+(async function () {
+    const result = await parseBik(`https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip`);
+    console.dir(result);
+})();
