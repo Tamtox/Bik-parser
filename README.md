@@ -1,1 +1,1 @@
-# Bik-parser
+## Парсер для XMl файла базы БИК с адреса https://www.cbr.ru/vfs/mcirabis/BIKNew/20230221ED01OSBR.zip
