@@ -34,12 +34,15 @@ async function parseBik(url: string) {
         reject(err);
       })
     });
-    // Extract XML and delete archive
+    // Extract XML, git file name and delete archive
     const archive = new AdmZip(`${folderName}/archive.zip`);
+    const archiveEntries = archive.getEntries();
+    let fileName: string = archiveEntries[0].name.toString();
+    if (!fileName) throw new Error("No files in archive");
     archive.extractAllTo(`${folderName}`);
     await rm(`${folderName}/archive.zip`, { recursive: true });
     // Parse XML file
-    const dataBuffer = await readFile(`${folderName}/20230221_ED807_full.xml`);
+    const dataBuffer = await readFile(`${folderName}/${fileName}`);
     const xmlString = iconv.decode(dataBuffer, 'win1251');
     const parseResult: any = await new Promise((resolve, reject) => {
       parseString(xmlString, (error, result) => {
@@ -50,7 +53,7 @@ async function parseBik(url: string) {
         }
       });
     });
-    // Aggregate data
+    // Get entries
     const participants = parseResult['ED807']['BICDirectoryEntry'];
     participants.forEach((participant: any) => {
       const bic = participant['$']['BIC'];
